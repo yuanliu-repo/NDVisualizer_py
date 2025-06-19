@@ -5,12 +5,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QIcon  # Import QIcon
 from PySide6.QtCore import Qt
 from pymatreader import read_mat
-from hdf5storage import loadmat
-import h5py
-# from hdf5storage import loadmat as read_mat  # Use hdf5storage for better compatibility with MATLAB files
 import sys
-from NDVisualizer_PySide6 import NDVisualizer, trim_singular_list, trim_singular_list_2
-import re
+from NDVisualizer_PySide6 import NDVisualizer, trim_singular_list_2
 import os
 from datetime import datetime
 
@@ -85,7 +81,7 @@ class MatFileSelector(QMainWindow):
         # Add a clickable GitHub hyperlink
         link_label = QLabel()
         link_label.setTextFormat(Qt.RichText)
-        link_label.setText('<a href="https://github.com/yuanliu-repo/NDVisualizer-py" style="color: gray;">GitHub Page</a>')
+        link_label.setText('<a href="https://github.com/yuanliu-repo/NDVisualizer_py" style="color: gray;">GitHub Page</a>')
         link_label.setOpenExternalLinks(True)
 
         launch_button_layout = QHBoxLayout()
@@ -145,9 +141,6 @@ class MatFileSelector(QMainWindow):
         file_date = datetime.fromtimestamp(os.path.getmtime(mat_filename)).strftime('%Y-%m-%d %H:%M:%S')
         self.file_info_label.setText(f"File: {os.path.basename(mat_filename)} | Date: {file_date}")
 
-        # t = loadmat(mat_filename)
-        t = h5py.File(mat_filename, 'r')  # Use h5py to read the .mat file
-        # Load the .mat file
         try:
             self.mat_data = trim_singular_list_2(read_mat(mat_filename))[0]
         except Exception as e:

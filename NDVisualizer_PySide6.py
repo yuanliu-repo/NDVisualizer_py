@@ -446,7 +446,7 @@ class NDVisualizer(QWidget):
         # Add a clickable GitHub hyperlink
         link_label = QLabel()
         link_label.setTextFormat(Qt.RichText)
-        link_label.setText('<a href="https://github.com/yuanliu-repo/NDVisualizer-py" style="color: gray;" >GitHub Page</a>')
+        link_label.setText('<a href="https://github.com/yuanliu-repo/NDVisualizer_py" style="color: gray;" >GitHub Page</a>')
         link_label.setOpenExternalLinks(True)
         grid.addWidget(link_label, row, 3, 1, 1, Qt.AlignCenter)
         row += 1
