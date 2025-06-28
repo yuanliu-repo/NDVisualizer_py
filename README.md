@@ -24,6 +24,35 @@ NDVisualizer currently supports [matrix and rectilinear datasets](https://optics
 NDVisualizer currently supports:
 
 - Lumerical® [Matrix and rectilinear datasets](https://optics.ansys.com/hc/en-us/articles/360034409554-Introduction-to-Lumerical-datasets) saved in MATLAB® data format `.mat`, as well as MATLAB® data file containing datasets with compatible data structure.
+  - Lumerical Rectlinear Dataset structure:
+```json
+        {
+          "dataset": {
+            "parameters": [
+              {
+                "variable": ["var_name1", "var_name2", ...], 
+                "name": ["disp_name1", "disp_name2", ...]
+              },
+              ...
+            ],
+            "attributes": [
+              {
+                "variable": ["attr_name1", "attr_name2", ...], 
+                "name": ["disp_attr_name1", "disp_attr_name1", ...]
+              },
+              ...
+            ]
+          },
+
+          "attr_name1": <attr1_data array>,
+          "attr_name2": <attr2 data array>,
+          ...
+          "var_name1": <var1 data array>,
+          "var_name2": <var1 data array>,
+          ...
+        }
+```
+
 - Support of more data format is comming soon.
 
 ## Standalone Executable
@@ -31,18 +60,10 @@ An standalone executable file for Windows is available for easy use (compiled wi
 
 [NDVisualizer Releases](https://github.com/yuanliuus/NDVisualizer_py/releases)
 
-## Requirements
-The required Python libraries are as follows.
-- Python=3.12
-- PySide6
-- Numpy
-- Matplotlib
-- Pymatreader
 
 ## Contributions
 
-Suggestions, issues, and pull requests are welcome!  
-If you have dataset formats or features you'd like to see supported, feel free to open an issue or contribute directly.
+Suggestions, issues, and pull requests are welcome! Feel free to open an issue or contribute directly.
 
 
 
