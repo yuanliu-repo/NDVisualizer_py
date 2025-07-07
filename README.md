@@ -58,7 +58,7 @@ NDVisualizer currently supports:
 ## Standalone Executable
 An standalone executable file for Windows is available for easy use (compiled with Nuitka). Download the latest release here:
 
-[NDVisualizer Releases](./releases)
+[NDVisualizer Releases](../../releases)
 
 
 ## Contributions
