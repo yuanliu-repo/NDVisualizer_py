@@ -5,3 +5,4 @@ PySide6
 PySide6_Addons
 PySide6_Essentials
 superqt
+pandas

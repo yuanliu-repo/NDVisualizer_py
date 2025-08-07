@@ -4,7 +4,7 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QMainWindow, QVBoxLayout, QHBoxLayout, QMessageBox,
+    QApplication, QWidget, QMenu, QVBoxLayout, QHBoxLayout, QMessageBox,
     QGridLayout, QLabel, QComboBox, QPushButton, QSlider, QGroupBox, QCheckBox
 )
 from PySide6.QtCore import Qt
@@ -17,6 +17,9 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 # from mpl_toolkits.mplot3d import Axes3D  # For 3D plotting
 from pymatreader import read_mat
 from PySide6.QtWidgets import QFileDialog
+from .PlotWindow import PlotWindow
+from ._version import __version__
+from .utils import get_icon_path
 
 
 # Patch hdf5storage to replace np.unicode_ with np.str_
@@ -109,117 +112,6 @@ class QSlider_helper(QRangeSlider):
         super().setValue(value)
 
 
-class PlotWindow(QMainWindow):
-    def __init__(self, title):
-        super().__init__()
-        self.setWindowTitle(title)
-        self.setMinimumSize(600, 400)
-
-        # Set the window icon
-        self.setWindowIcon(QIcon("icon.ico"))  # Ensure icon.ico is in the same directory as the script
-
-        # Create a QWidget to act as the central widget
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-
-        # Create a layout for the central widget
-        self.layout = QVBoxLayout(self.central_widget)
-
-        # Initialize the matplotlib figure and canvas
-        self.figure = Figure()
-        self.canvas = FigureCanvas(self.figure)
-        self.layout.addWidget(self.canvas)
-
-    def clear_plot(self):
-        # Clear the matplotlib figure
-        self.figure.clear()
-
-    def plot_1d(self, xvals, yvals, xlabel, ylabel, title):
-        self.clear_plot()
-        ax = self.figure.add_subplot(111)
-        ax.plot(xvals, yvals, marker='o')
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.set_title(title)
-
-        # Adjust layout for a tight fit
-        self.figure.tight_layout()
-        self.canvas.draw()
-
-    def plot_2d(self, xvals, yvals, data, xlabel, ylabel, title):
-        self.plot_2d_pcolormesh(xvals, yvals, data, xlabel, ylabel, title)
-
-    def plot_2d_imshow(self, data, extent, xlabel, ylabel, title):
-        self.clear_plot()
-        ax = self.figure.add_subplot(111)
-        cax = ax.imshow(data, extent=extent, origin='lower', aspect='auto', cmap='viridis')
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.set_title(title)
-        self.figure.colorbar(cax, ax=ax)
-
-        # Adjust layout for a tight fit
-        self.figure.tight_layout()
-        self.canvas.draw()
-
-    def plot_2d_pcolormesh(self, xvals, yvals, data, xlabel, ylabel, title):
-        self.clear_plot()
-        ax = self.figure.add_subplot(111)
-
-        # Create a meshgrid from xvals and yvals
-        X, Y = np.meshgrid(xvals, yvals, indexing='ij')
-
-        # Plot the data using pcolormesh
-        cax = ax.pcolormesh(X, Y, data, shading='auto', cmap='viridis')
-
-        # Set labels and title
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.set_title(title)
-
-        # Add a colorbar
-        self.figure.colorbar(cax, ax=ax)
-
-        # Adjust layout for a tight fit
-        self.figure.tight_layout()
-        self.canvas.draw()
-
-    def plot_2d_contour(self, xvals, yvals, data, xlabel, ylabel, title):
-        self.clear_plot()
-        ax = self.figure.add_subplot(111)
-
-        # Create a meshgrid from xvals and yvals
-        X, Y = np.meshgrid(xvals, yvals)
-
-        # Plot the data using contourf
-        cax = ax.contourf(X, Y, data, levels=50, cmap='viridis')
-
-        # Set labels and title
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.set_title(title)
-
-        # Add a colorbar
-        self.figure.colorbar(cax, ax=ax)
-
-        # Adjust layout for a tight fit
-        self.figure.tight_layout()
-        self.canvas.draw()
-
-    def plot_3d(self, xvals, yvals, zvals, vals, xlabel, ylabel, zlabel, title):
-        self.clear_plot()
-        ax = self.figure.add_subplot(111, projection='3d')
-        scatter = ax.scatter(xvals, yvals, zvals, c=vals, cmap='viridis')
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.set_zlabel(zlabel)
-        ax.set_title(title)
-        self.figure.colorbar(scatter, ax=ax, shrink=0.5, aspect=10)
-
-        # Adjust layout for a tight fit
-        self.figure.tight_layout()
-        self.canvas.draw()
-
 
 class NDVisualizer(QWidget):
     def __init__(self, mat_data, attribute_key):
@@ -241,8 +133,8 @@ class NDVisualizer(QWidget):
             }
         """
         super().__init__()
-        # Set the window icon
-        self.setWindowIcon(QIcon("icon.ico"))  # Ensure icon.ico is in the same directory as the script
+
+        self.blockUpdatePlot = False  # Flag to block updates to the plot while updating controls
 
         # Save the full .mat data for later lookups
         self.mat_data = trim_singular_list_2(mat_data)[0]
@@ -329,7 +221,7 @@ class NDVisualizer(QWidget):
         self.initUI()
         # Create a separate plot window
         title_attr = self.get_attr_name_by_var(self.attribute_key)
-        self.plotWindow = PlotWindow(title_attr + " Visualizer")
+        self.plotWindow = PlotWindow(title_attr + " Visualizer", self)
         self.plotWindow.show()
         self.updateWidgetStates()
         self.updatePlot()
@@ -346,7 +238,9 @@ class NDVisualizer(QWidget):
 
 
     def initUI(self):
-        self.setWindowTitle(self.get_attr_name_by_var(self.attribute_key) + " Visualizer Controls")
+        self.setWindowTitle(f"{self.get_attr_name_by_var(self.attribute_key)} Visualizer Controls - NDVisualizer v{__version__}")
+        self.setWindowIcon(QIcon(get_icon_path()))  
+        
         layout = QVBoxLayout()
 
         # Grid layout for top-level controls
@@ -438,17 +332,23 @@ class NDVisualizer(QWidget):
         grid.addWidget(self.operatorCombo, row, 1)
         row += 1
 
-        # Add "Copy to Clipboard" button
-        self.copyButton = QPushButton("Copy to Clipboard")
-        self.copyButton.clicked.connect(self.copyToClipboard)
-        grid.addWidget(self.copyButton, row, 0, 1, 2)  # Span across two columns
-        self.copyButton.setToolTip("Copy the current data slice to the clipboard.")
-        # Add a clickable GitHub hyperlink
-        link_label = QLabel()
-        link_label.setTextFormat(Qt.RichText)
-        link_label.setText('<a href="https://github.com/yuanliu-repo/NDVisualizer_py" style="color: gray;" >GitHub Page</a>')
-        link_label.setOpenExternalLinks(True)
-        grid.addWidget(link_label, row, 3, 1, 1, Qt.AlignCenter)
+
+        ## Add a menu button with dropdown for additional actions
+        self.exportButton = QPushButton("Export Data")
+        action_menu = QMenu(self)
+        # Add actions to the menu
+        exportCopy = action_menu.addAction("Copy slice to Clipboard")
+        exportCopy.triggered.connect(self.copySliceToClipboard)
+        exportSaveSliceCSV = action_menu.addAction("Save slice to .csv file")
+        exportSaveSliceCSV.triggered.connect(self.saveSliceToCSV)
+        # exportSendSliceMAT = action_menu.addAction("Save slice to .mat file")
+        # exportSend.triggered.connect(self.sendSliceToMatlab)
+        
+        exportSendDatasetMAT = action_menu.addAction("Save dataset to .mat file")
+        exportSendDatasetMAT.triggered.connect(self.saveDatasetToMat)
+        # Set the menu to the button
+        self.exportButton.setMenu(action_menu)
+        grid.addWidget(self.exportButton, row, 0, 1, 2)  # Span across two columns
         row += 1
 
         layout.addLayout(grid)
@@ -512,6 +412,18 @@ class NDVisualizer(QWidget):
         sliderGroup.setLayout(sliderLayout)
         layout.addWidget(sliderGroup)
 
+        hLayout = QHBoxLayout()
+        # Add a clickable GitHub hyperlink
+        link_label = QLabel()
+        link_label.setTextFormat(Qt.RichText)
+        link_label.setStyleSheet("color: gray;")
+        link_label.setText(f'v{__version__}  <a href="https://github.com/yuanliu-repo/NDVisualizer_py" style="color: gray;" >GitHub Page</a>')
+        link_label.setOpenExternalLinks(True)
+        hLayout.addStretch(1) 
+        hLayout.addWidget(link_label)
+        layout.addLayout(hLayout)
+
+
         self.setLayout(layout)
 
         # Set the window size to minimal and disable resizing
@@ -522,7 +434,9 @@ class NDVisualizer(QWidget):
     def onPlotTypeChange(self, index):
         self.plotType = index + 1
         self.updateWidgetStates()
+        self.plotWindow.update_toolbar()
         self.updatePlot()
+        self.plotWindow.reset_axis()  
 
     def onNewPlot(self):
         title_attr = self.get_attr_name_by_var(self.attribute_key)
@@ -533,7 +447,7 @@ class NDVisualizer(QWidget):
     def onHeatmap(self):
         if self.plotType == 2:
             title_attr = self.get_attr_name_by_var(self.attribute_key)
-            self.heatmapWindow = PlotWindow(title_attr + " Heatmap")
+            self.heatmapWindow = PlotWindow(title_attr + " Heatmap", self)
             self.heatmapWindow.show()
             self.updatePlot(heatmap=True)
 
@@ -594,10 +508,12 @@ class NDVisualizer(QWidget):
         
         self.updateWidgetStates()
         self.updatePlot()
+        self.plotWindow.reset_axis()  
 
     def onOperatorChange(self, index):
         self.operator = index
         self.updatePlot()
+        self.plotWindow.reset_axis()  
 
     def onSliderChange(self, d, value, label):
         """
@@ -744,6 +660,9 @@ class NDVisualizer(QWidget):
         """
         Update the plot based on the current data, axes, and operator.
         """
+        if self.blockUpdatePlot:
+            return
+        
         # Determine which dimensions are used for plotting
         if self.plotType == 1:
             plotDims = [self.dimX]
@@ -757,7 +676,7 @@ class NDVisualizer(QWidget):
         
         allDims = range(self.nd)
         overlapDims = [d for d in allDims if d not in plotDims and self.plotType == 1 and self.overlapCheckboxes[d].isChecked()]
-
+        self.overlapDims = overlapDims
         # Build an index tuple for slicing the data
         idx = [
             # slice(0, self.sz[d]) if d in plotDims or d in overlapDims
@@ -765,53 +684,57 @@ class NDVisualizer(QWidget):
             else slice(self.sliceIndex[d][0], self.sliceIndex[d][0] + 1)
             for d in range(self.nd)
         ]
-        dataSlice = self.data[tuple(idx)]
+        self.idx = idx
+        self.dataSlice = self.data[tuple(idx)]
 
         # Rearrange dimensions so that the plot dimensions come first
         otherDims = [d for d in allDims if d not in plotDims and d not in overlapDims]
         newOrder = plotDims + overlapDims + otherDims
-        dataSlice = np.transpose(dataSlice, newOrder)
+        self.dataSlice = np.transpose(self.dataSlice, newOrder)
 
         # Reshape to just the plot dimensions
-        newShape = dataSlice.shape[:len(plotDims + overlapDims)]
-        dataSlice = dataSlice.reshape(newShape)
+        newShape = self.dataSlice.shape[:len(plotDims + overlapDims)]
+        self.dataSlice = self.dataSlice.reshape(newShape)
 
         # Apply the chosen operator
         func = self.operatorFunctions[self.operator]
-        dataSlice = func(dataSlice)
+        self.dataSlice = func(self.dataSlice)
 
         # Clear and update the plot in the plot window
         if self.plotType == 1:
-            var_key_x = self.dataset['parameters'][self.dimX]['variable'][self.parameterIndex[self.dimX]]
-            xvals = np.squeeze(np.array(self.mat_data[var_key_x][idx[newOrder[0]]]))  # Use the first index for 1D plots
+            self.var_key_x = self.dataset['parameters'][self.dimX]['variable'][self.parameterIndex[self.dimX]]
+            self.xvals = np.squeeze(np.array(self.mat_data[self.var_key_x][idx[newOrder[0]]]))  # Use the first index for 1D plots
+            var_key_overlap = self.dataset['parameters'][self.overlapDims[0]]['variable'][self.parameterIndex[self.overlapDims[0]]] if self.overlapDims else None
+            legends = [self.dimLabels[self.overlapDims[0]]] + [f"{_n:g}" for _n in np.squeeze(np.array(self.mat_data[var_key_overlap][idx[self.overlapDims[0]]]))] if self.overlapDims else None
             self.plotWindow.plot_1d(
-                xvals, dataSlice,
+                self.xvals, self.dataSlice,
                 xlabel=self.dimLabels[self.dimX],
                 ylabel=f"{self.operatorLabels[self.operator]} of {self.get_attr_name_by_var(self.attribute_key)}",
-                title=f"{self.operatorLabels[self.operator]} of {self.get_attr_name_by_var(self.attribute_key)}"
+                title=f"{self.operatorLabels[self.operator]} of {self.get_attr_name_by_var(self.attribute_key)}",
+                legend=legends
             )
         elif self.plotType == 2:
-            var_key_x = self.dataset['parameters'][self.dimX]['variable'][self.parameterIndex[self.dimX]]
-            var_key_y = self.dataset['parameters'][self.dimY]['variable'][self.parameterIndex[self.dimY]]
-            xvals = np.squeeze(np.array(self.mat_data[var_key_x][idx[newOrder[0]]]))
-            yvals = np.squeeze(np.array(self.mat_data[var_key_y][idx[newOrder[1]]]))
+            self.var_key_x = self.dataset['parameters'][self.dimX]['variable'][self.parameterIndex[self.dimX]]
+            self.var_key_y = self.dataset['parameters'][self.dimY]['variable'][self.parameterIndex[self.dimY]]
+            self.xvals = np.squeeze(np.array(self.mat_data[self.var_key_x][idx[newOrder[0]]]))
+            self.yvals = np.squeeze(np.array(self.mat_data[self.var_key_y][idx[newOrder[1]]]))
             self.plotWindow.plot_2d(
-                xvals,
-                yvals,
-                dataSlice,
+                self.xvals,
+                self.yvals,
+                self.dataSlice,
                 xlabel=self.dimLabels[self.dimX],
                 ylabel=self.dimLabels[self.dimY],
                 title=f"{self.operatorLabels[self.operator]} of {self.get_attr_name_by_var(self.attribute_key)}"
             )
         elif self.plotType == 3:
-            var_key_x = self.dataset['parameters'][self.dimX]['variable'][self.parameterIndex[self.dimX]]
-            var_key_y = self.dataset['parameters'][self.dimY]['variable'][self.parameterIndex[self.dimY]]
-            var_key_z = self.dataset['parameters'][self.dimZ]['variable'][self.parameterIndex[self.dimZ]]
-            xvals = np.squeeze(np.array(self.mat_data[var_key_x][idx[newOrder[0]]]))
-            yvals = np.squeeze(np.array(self.mat_data[var_key_y][idx[newOrder[1]]]))
-            zvals = np.squeeze(np.array(self.mat_data[var_key_z][idx[newOrder[2]]]))
-            xx, yy, zz = np.meshgrid(xvals, yvals, zvals, indexing='ij')
-            vals = dataSlice.flatten()
+            self.var_key_x = self.dataset['parameters'][self.dimX]['variable'][self.parameterIndex[self.dimX]]
+            self.var_key_y = self.dataset['parameters'][self.dimY]['variable'][self.parameterIndex[self.dimY]]
+            self.var_key_z = self.dataset['parameters'][self.dimZ]['variable'][self.parameterIndex[self.dimZ]]
+            self.xvals = np.squeeze(np.array(self.mat_data[self.var_key_x][idx[newOrder[0]]]))
+            self.yvals = np.squeeze(np.array(self.mat_data[self.var_key_y][idx[newOrder[1]]]))
+            self.zvals = np.squeeze(np.array(self.mat_data[self.var_key_z][idx[newOrder[2]]]))
+            xx, yy, zz = np.meshgrid(self.xvals, self.yvals, self.zvals, indexing='ij')
+            vals = self.dataSlice.flatten()
             self.plotWindow.plot_3d(
                 xx, yy, zz, vals,
                 xlabel=self.dimLabels[self.dimX],
@@ -827,27 +750,27 @@ class NDVisualizer(QWidget):
             xvals = np.squeeze(np.array(self.mat_data[var_key_x][idx[newOrder[0]]]))
             yvals = np.squeeze(np.array(self.mat_data[var_key_y][idx[newOrder[1]]]))
             # extent = [xvals[0], xvals[-1], yvals[0], yvals[-1]]
-            self.heatmapWindow.plot_2d(
+            self.heatmapWindow.plot_2d_heatmap(
             xvals, yvals,
-            dataSlice, 
+            self.dataSlice, 
             # extent, 
             self.dimLabels[self.dimX], 
             self.dimLabels[self.dimY], 
             f"{self.operatorLabels[self.operator]} of {self.get_attr_name_by_var(self.attribute_key)} (Heatmap)"
             )
 
-            # Add value labels at the center of each cell in the heatmap
-            ax = self.heatmapWindow.figure.gca()
-            # num_rows, num_cols = dataSlice.shape
-            # x_centers = xvals + (xvals[1] - xvals[0]) / 2
-            # y_centers = yvals + (yvals[1] - yvals[0]) / 2
-            x_centers = xvals 
-            y_centers = yvals 
-            for i, y in enumerate(y_centers):
-                for j, x in enumerate(x_centers):
-                    if not np.isnan(dataSlice[j, i]):
-                        ax.text(x, y, f"{dataSlice[j, i]:g}", color="black", ha="center", va="center", fontsize=8)
-            self.heatmapWindow.canvas.draw()
+            # # Add value labels at the center of each cell in the heatmap
+            # ax = self.heatmapWindow.figure.gca()
+            # # num_rows, num_cols = dataSlice.shape
+            # # x_centers = xvals + (xvals[1] - xvals[0]) / 2
+            # # y_centers = yvals + (yvals[1] - yvals[0]) / 2
+            # x_centers = xvals 
+            # y_centers = yvals 
+            # for i, y in enumerate(y_centers):
+            #     for j, x in enumerate(x_centers):
+            #         if not np.isnan(self.dataSlice[j, i]):
+            #             ax.text(x, y, f"{self.dataSlice[j, i]:g}", color="white", ha="center", va="center", fontsize=8)
+            # self.heatmapWindow.canvas.draw()
 
     def updateWidgetStates(self):
         """
@@ -895,7 +818,8 @@ class NDVisualizer(QWidget):
     
         # Example: Enable/disable sliders based on the selected dimensions
         for d, slider in enumerate(self.sliders):
-            slider.blockSignals(True)  # Block signals to avoid triggering onSliderChange while updating sliders
+            self.blockUpdatePlot = True  # Temporarily block updates to avoid triggering onSliderChange
+            # slider.blockSignals(True)  # Block signals to avoid triggering onSliderChange while updating sliders
             if d in [self.dimX, self.dimY, self.dimZ][0:self.plotType]:
                 slider.setValue((0, self.sz[d] - 1))  # Reset slider to full range for axes in use
                 self.sliceIndex[d] = (0, self.sz[d] - 1)
@@ -904,66 +828,123 @@ class NDVisualizer(QWidget):
             else:
                 self.overlapCheckboxes[d].setEnabled(self.plotType == 1)  # Enable overlap checkbox only for 1D plots 
                 if not self.overlapCheckboxes[d].isChecked():
-                    slider.setValue((0,))  # Reset slider to full range for axes in use
-                    self.sliceIndex[d] = (0, )
+                    if len(self.sliceIndex[d]) > 1:
+                        slider.setValue((0,))  # Reset slider to full range for axes in use
+                        self.sliceIndex[d] = (0, )
                     # slider.setEnabled(True)  # Enable sliders for other dimensions
-            slider.blockSignals(False)  # Re-enable signals after updating sliders
+            # slider.blockSignals(False)  # Re-enable signals after updating sliders
+            self.blockUpdatePlot = False  # Re-enable updates after all sliders are set
 
-    def copyToClipboard(self):
+    def ScliceToCSV(self):
+        # Format data as tab-delimited text
+        text = ""
+        if self.plotType == 1:
+            attr_name = self.get_attr_name_by_var(self.attribute_key)
+            if not self.overlapDims:  # 1D data
+                text += f"\"{self.dimLabels[self.dimX]}\"\t\"{attr_name}\"\n"
+                for x, val in zip(self.xvals, self.dataSlice):
+                    text += f"{x}\t{val}\n"
+            else:
+                overlapdimlabel = self.dimLabels[self.overlapDims[0]] if self.overlapDims else ""
+                text += f"\"{overlapdimlabel}\"\t\"{self.dimLabels[self.dimX]}\"\t\"{attr_name}\"\n"
+                var_key_overlap = self.dataset['parameters'][self.overlapDims[0]]['variable'][self.parameterIndex[self.overlapDims[0]]] if self.overlapDims else None
+                for ovlp in np.squeeze(np.array(self.mat_data[var_key_overlap][self.idx[self.overlapDims[0]]])):
+                    for x, val in zip(self.xvals, self.dataSlice):
+                        text += f"{ovlp:g}\t{x}\t" + "\t".join(map(str, val)) + "\n"
+
+        elif self.plotType == 2:  # 2D data
+            text += f"\"{self.dimLabels[self.dimX]}\"\t\"{self.dimLabels[self.dimY]}\"\n"
+            text += f"\t" + "\t".join(map(str, self.yvals)) + "\n"
+            for x, row in zip(self.xvals, self.dataSlice):
+                text += f"{x}\t" + "\t".join(map(str, row)) + "\n"
+        else:
+            QMessageBox.warning(self, "Unsupported Format", "Copying 3D data to .csv is not supported.")
+            return
+        return text
+        
+
+    def copySliceToClipboard(self):
         """
         Copy the current data slice and axes data to the clipboard in tab-delimited text format.
         """
-        # Determine which dimensions are used for plotting
-        if self.plotType == 1:
-            plotDims = [self.dimX]
-        elif self.plotType == 2:
-            plotDims = [self.dimX, self.dimY]
-        elif self.plotType == 3:
-            plotDims = [self.dimX, self.dimY, self.dimZ]
-        else:
-            plotDims = [self.dimX]
-
-        # Build an index tuple for slicing the data
-        idx = [slice(0, self.sz[d]) if d in plotDims else slice(self.sliceIndex[d], self.sliceIndex[d] + 1) for d in range(self.nd)]
-        dataSlice = self.data[tuple(idx)]
-
-        # Rearrange dimensions so that the plot dimensions come first
-        allDims = list(range(len(idx)))
-        otherDims = [d for d in allDims if d not in plotDims]
-        newOrder = plotDims + otherDims
-        dataSlice = np.transpose(dataSlice, newOrder)
-
-        # Reshape to just the plot dimensions
-        newShape = dataSlice.shape[:len(plotDims)]
-        dataSlice = dataSlice.reshape(newShape)
-
-        # Apply the chosen operator
-        func = self.operatorFunctions[self.operator]
-        dataSlice = func(dataSlice)
-
-        # Get axes data
-        axesData = []
-        for dim in plotDims:
-            var_key = self.dataset['parameters'][dim]['variable'][0]
-            axesData.append(np.squeeze(np.array(self.mat_data[var_key])))
-
-        # Format data as tab-delimited text
-        text = ""
-        if len(axesData) == 1:  # 1D data
-            text += "X\tData\n"
-            for x, val in zip(axesData[0], dataSlice):
-                text += f"{x}\t{val}\n"
-        elif len(axesData) == 2:  # 2D data
-            text += "X\t" + "\t".join(map(str, axesData[1])) + "\n"
-            for x, row in zip(axesData[0], dataSlice):
-                text += f"{x}\t" + "\t".join(map(str, row)) + "\n"
-        else:
-            QMessageBox.warning(self, "Unsupported Format", "Copying 3D data to MATLAB in text mode is not supported.")
-            return
 
         # Copy to clipboard
-        self.clipboard.setText(text)
+        self.clipboard.setText(self.ScliceToCSV())
         print("Data copied to clipboard in tab-delimited text format.")
+        QMessageBox.information(self, "Copy to Clipboard", "Data slice copied to clipboard in .csv format.")
+
+    def saveSliceToCSV(self):
+        """
+        Save the current data slice and axes data to a .csv file.
+        """
+
+        # Get the file path from the user
+        options = QFileDialog.Options()
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Save CSV File", "", "CSV Files (*.csv)", options=options
+        )
+
+        if not file_path:
+            return  # User canceled the dialog
+
+        # Write the data to the .csv file
+        with open(file_path, "w") as f:
+            f.write(self.ScliceToCSV())
+        print(f"Data saved to {file_path}")
+        QMessageBox.information(self, "Save to CSV", f"Data slice saved to {file_path}")
+
+    def saveDatasetToMat(self):
+        """
+        Save the current dataset to a .mat file.
+        """
+        # Get the file path from the user
+        options = QFileDialog.Options()
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Save Dataset to .mat File", "", "MAT Files (*.mat)", options=options
+        )
+
+        if not file_path:
+            return  # User canceled the dialog
+        # Save the dataset to the .mat file
+        try:
+            from scipy.io import savemat
+            # Prepare the data to save
+            data_to_save = {self.attribute_key: self.mat_data}
+            savemat(file_path, data_to_save)
+            print(f"Dataset saved to {file_path}")
+            QMessageBox.information(self, "Save to .mat", f"Dataset saved to {file_path}")
+        except Exception as e:
+            print(f"Error saving dataset to .mat file: {e}")
+            QMessageBox.critical(self, "Save Error", f"Failed to save dataset to .mat file: {e}")
+
+    def closeEvent(self, event):
+        """
+        Handle the window close event by closing the plot window as well.
+        """
+        if hasattr(self, 'matlabeng') and self.matlabeng:
+            try:
+                # Show a confirmation dialog before closing MATLAB
+                reply = QMessageBox.question(
+                    self, 
+                    "Close Application", 
+                    "A MATLAB session is currently running. Any unsaved work in MATLAB will be lost. Do you want to continue?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                
+                if reply == QMessageBox.Yes:
+                    self.matlabeng.quit()
+                else:
+                    event.ignore()
+                    return
+            except:
+                # If there's an error closing MATLAB, proceed anyway
+                pass
+        if hasattr(self, 'plotWindow') and self.plotWindow:
+            self.plotWindow.close()
+        if hasattr(self, 'heatmapWindow') and self.heatmapWindow:
+            self.heatmapWindow.close()
+        event.accept()
 
 
 def main():
