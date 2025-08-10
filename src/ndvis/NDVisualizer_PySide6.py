@@ -850,7 +850,8 @@ class NDVisualizer(QWidget):
                 var_key_overlap = self.dataset['parameters'][self.overlapDims[0]]['variable'][self.parameterIndex[self.overlapDims[0]]] if self.overlapDims else None
                 for ovlp in np.squeeze(np.array(self.mat_data[var_key_overlap][self.idx[self.overlapDims[0]]])):
                     for x, val in zip(self.xvals, self.dataSlice):
-                        text += f"{ovlp:g}\t{x}\t" + "\t".join(map(str, val)) + "\n"
+                        text += f"{ovlp:g}\t{x}\t" + str(val[0]) + "\n"
+                        # text += f"{ovlp:g}\t{x}\t" + "\t".join(map(str, val)) + "\n"
 
         elif self.plotType == 2:  # 2D data
             text += f"\"{self.dimLabels[self.dimX]}\"\t\"{self.dimLabels[self.dimY]}\"\n"
